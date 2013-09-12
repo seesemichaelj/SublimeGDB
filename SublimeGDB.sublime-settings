@@ -25,7 +25,7 @@
     "workingdir": "/tmp",
 
     // NOTE: You MUST provide --interpreter=mi for the plugin to work
-    "commandline": "gdb --interpreter=mi ./executable",
+    "commandline": "gdb --interpreter=mi",
 
     // The command to use to run the program.
     // If you are attaching to a remote program, you
@@ -73,6 +73,9 @@
 
     "disassembly_group": 2,
     "disassembly_open": false,
+    // Set to "intel" for intel disassembly flavor. All other
+    // values default to using "att" flavor.
+    "disassembly_flavor": "intel",
 
     "threads_group": 3,
     "threads_open": true,

@@ -1141,27 +1141,6 @@ class GDBBreakpointView(GDBView):
 
         print("---")
 
-    def update_single_marker(self):
-        bps = []
-        view = sublime.active_window().active_view()
-        fn = view.file_name()
-        if fn is None:
-            return
-        fn = normalize(fn)
-
-        print("***")
-        
-        for bkpt in self.breakpoints:
-            if bkpt.filename == fn and not (bkpt.line == gdb_cursor_position and fn == gdb_cursor):
-                bps.append(view.full_line(view.text_point(bkpt.line - 1, 0)))
-
-        print(bps)
-        
-        view.add_regions("sublimegdb.breakpoints", bps,
-                            get_setting("breakpoint_scope", "keyword.gdb"),
-                            get_setting("breakpoint_icon", "circle"),
-                            sublime.HIDDEN)
-
     def find_breakpoint(self, filename, line):
         filename = normalize(filename)
         for bkpt in self.breakpoints:

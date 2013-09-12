@@ -1051,7 +1051,6 @@ class GDBBreakpoint(object):
         if "bkpt" not in res and "matches" in res:
             for match in res["matches"]["b"]:
                 cmd = "%s *%s" % (break_cmd, match["addr"])
-                print(cmd)
                 out = run_cmd(cmd, True)
                 if get_result(out) == "error":
                     return
@@ -1062,7 +1061,6 @@ class GDBBreakpoint(object):
 
     def add(self):
         if is_running():
-            print("sup")
             res = wait_until_stopped()
             self.insert()
             if res:
@@ -1070,7 +1068,6 @@ class GDBBreakpoint(object):
 
     def remove(self):
         if is_running():
-            print("bitch")
             res = wait_until_stopped()
             run_cmd("-break-delete %s" % self.number)
             if res:

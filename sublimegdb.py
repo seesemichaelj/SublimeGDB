@@ -1051,6 +1051,7 @@ class GDBBreakpoint(object):
         if "bkpt" not in res and "matches" in res:
             for match in res["matches"]["b"]:
                 cmd = "%s *%s" % (break_cmd, match["addr"])
+                print(cmd)
                 out = run_cmd(cmd, True)
                 if get_result(out) == "error":
                     return
@@ -1061,6 +1062,7 @@ class GDBBreakpoint(object):
 
     def add(self):
         if is_running():
+            print("sup")
             res = wait_until_stopped()
             self.insert()
             if res:
@@ -1068,6 +1070,7 @@ class GDBBreakpoint(object):
 
     def remove(self):
         if is_running():
+            print("bitch")
             res = wait_until_stopped()
             run_cmd("-break-delete %s" % self.number)
             if res:
@@ -1098,6 +1101,7 @@ class GDBBreakpointView(GDBView):
     def __init__(self):
         super(GDBBreakpointView, self).__init__("GDB Breakpoints", s=False, settingsprefix="breakpoints")
         self.breakpoints = []
+        self.toggle = False
 
     def open(self):
         super(GDBBreakpointView, self).open()
@@ -1117,10 +1121,45 @@ class GDBBreakpointView(GDBView):
         if fn is None:
             return
         fn = normalize(fn)
+
+        print("---")
+
+        if not self.toggle:
+            self.update_breakpoints()
+        else:
+            self.toggle = False
+
+        print(self.breakpoints)
+        
         for bkpt in self.breakpoints:
             if bkpt.filename == fn and not (bkpt.line == gdb_cursor_position and fn == gdb_cursor):
                 bps.append(view.full_line(view.text_point(bkpt.line - 1, 0)))
 
+        #print(bps)
+        
+        view.add_regions("sublimegdb.breakpoints", bps,
+                            get_setting("breakpoint_scope", "keyword.gdb"),
+                            get_setting("breakpoint_icon", "circle"),
+                            sublime.HIDDEN)
+
+        print("---")
+
+    def update_single_marker(self):
+        bps = []
+        view = sublime.active_window().active_view()
+        fn = view.file_name()
+        if fn is None:
+            return
+        fn = normalize(fn)
+
+        print("***")
+        
+        for bkpt in self.breakpoints:
+            if bkpt.filename == fn and not (bkpt.line == gdb_cursor_position and fn == gdb_cursor):
+                bps.append(view.full_line(view.text_point(bkpt.line - 1, 0)))
+
+        print(bps)
+        
         view.add_regions("sublimegdb.breakpoints", bps,
                             get_setting("breakpoint_scope", "keyword.gdb"),
                             get_setting("breakpoint_icon", "circle"),
@@ -1140,6 +1179,7 @@ class GDBBreakpointView(GDBView):
         return None
 
     def toggle_watch(self, exp):
+        self.update_breakpoints()
         add = True
         for bkpt in self.breakpoints:
             if isinstance(bkpt, GDBWatch) and bkpt.exp == exp:
@@ -1153,6 +1193,7 @@ class GDBBreakpointView(GDBView):
         self.update_view()
 
     def toggle_breakpoint_addr(self, addr):
+        self.update_breakpoints()
         bkpt = self.find_breakpoint_addr(addr)
         if bkpt:
             bkpt.remove()
@@ -1162,19 +1203,62 @@ class GDBBreakpointView(GDBView):
         self.update_view()
 
     def toggle_breakpoint(self, filename, line):
+        print("&&&")
+        print("1")
+        print(self.breakpoints)
+        self.update_breakpoints()
+        print("2")
+        print(self.breakpoints)
         bkpt = self.find_breakpoint(filename, line)
         if bkpt:
             bkpt.remove()
             self.breakpoints.remove(bkpt)
         else:
             self.breakpoints.append(GDBBreakpoint(filename, line))
+        print("3")
+        print(self.breakpoints)
+        print("&&&")
+        self.toggle = True
         self.update_view()
+
+    def get_breakpoints(self):
+        # Get currently selected breakpoints, return line numbers
+        view = sublime.active_window().active_view()
+        selected_bps = view.get_regions("sublimegdb.breakpoints")
+        selected_lines = []
+        for bkpt_region in selected_bps:
+            bkpt_region = view.line(bkpt_region)
+            line = view.rowcol(bkpt_region.end())[0]
+            selected_lines.append(line)
+        return selected_lines
+
+    def clear_breakpoints(self):
+        for bkpt in self.breakpoints:
+            bkpt.clear()
+        self.breakpoints = []
+
+    def update_breakpoints(self):
+        selected_bps = self.get_breakpoints();
+        self.clear_breakpoints();
+
+        view = sublime.active_window().active_view()
+        fn = view.file_name()
+        if fn is None:
+            return
+        fn = normalize(fn)
+
+        for line in selected_bps:
+            self.breakpoints.append(GDBBreakpoint(fn, line))
 
     def sync_breakpoints(self):
         global breakpoints
+
+        self.update_breakpoints()
+
         for bkpt in self.breakpoints:
             bkpt.add()
-        update_view_markers()
+
+        #update_view_markers()
         self.update_view()
 
     def update_view(self):
@@ -1383,6 +1467,10 @@ def gdboutput(pipe):
                 gdb_console_view.add_line(
                     line[2:-1].replace("\\n", "\n").replace("\\\"", "\"").replace("\\t", "\t"), False)
 
+            if not line.startswith("(gdb)") and "^done" not in line and "^running" not in line and not line.startswith("~") and not line.startswith("^") and not line.startswith("=") and not line.startswith("*") and not line.startswith("&"):
+                gdb_console_view.add_line(line + "\n")
+                    #line[2:-1].replace("\\n", "\n").replace("\\\"", "\"").replace("\\t", "\t"), False)
+
         except:
             traceback.print_exc()
     if pipe == gdb_process.stdout:
@@ -1557,6 +1645,13 @@ class GdbLaunch(sublime_plugin.WindowCommand):
         view = self.window.active_view()
         DEBUG = get_setting("debug", False, view)
         DEBUG_FILE = expand_path(get_setting("debug_file", "stdout", view), self.window)
+
+
+        PROJECT_DIR = self.window.folders()[0];
+        if DEBUG:
+            print(PROJECT_DIR + "/Makefile")
+
+
         if DEBUG:
             print("Will write debug info to file: %s" % DEBUG_FILE)
         if gdb_process is None or gdb_process.poll() is not None:
@@ -1565,10 +1660,22 @@ class GdbLaunch(sublime_plugin.WindowCommand):
                 # backwards compatibility for when the commandline was a list
                 commandline = " ".join(commandline)
             commandline = expand_path(commandline, self.window)
+        
+            try:
+                with open(PROJECT_DIR + "/Makefile"): pass
+                subprocess.call("make -C " + PROJECT_DIR + " sublime_debug", shell=True)
+                commandline = commandline + " " + PROJECT_DIR + "/sublime_debug"
+            except IOError:
+                print("No Makefile. Will try to make using current filename")
+                fileName = view.file_name();
+                pos = fileName.rfind("/")
+                subprocess.call("g++ -g " + fileName + " -o " + fileName[:pos] + "/sublime_debug", shell=True)
+                commandline = commandline + " " + fileName[:pos] + "/sublime_debug"
+
             path = expand_path(get_setting("workingdir", "/tmp", view), self.window)
             log_debug("Running: %s\n" % commandline)
             log_debug("In directory: %s\n" % path)
-            gdb_process = subprocess.Popen(commandline, shell=True, cwd=path,
+            gdb_process = subprocess.Popen(commandline, shell=True, cwd=PROJECT_DIR,
                                             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
             log_debug("Process: %s\n" % gdb_process)
@@ -1606,18 +1713,27 @@ class GdbLaunch(sublime_plugin.WindowCommand):
             log_debug("pty: %s, tty: %s, name: %s" % (pty, tty, name))
             t = threading.Thread(target=programio, args=(pty,tty))
             t.start()
+            """
+            # Commented out by Mike Seese because 'show interpreter' is not valid in gdb
             try:
                 run_cmd("-gdb-show interpreter", True, timeout=get_setting("gdb_timeout", 20))
             except:
-                sublime.error_message("""\
+                sublime.error_message("
 It seems you're not running gdb with the "mi" interpreter. Please add
-"--interpreter=mi" to your gdb command line""")
+"--interpreter=mi" to your gdb command line")
                 gdb_process.stdin.write("quit\n")
                 return
-            run_cmd("-inferior-tty-set %s" % name, True)
+            """
+            #run_cmd("-inferior-tty-set %s" % name, True)
 
             run_cmd("-gdb-set target-async 1")
             run_cmd("-gdb-set pagination off")
+            dis_asm_flavor = get_setting("disassembly_flavor", "att", view)
+            if dis_asm_flavor == "intel":
+                run_cmd("set disassembly-flavor intel")
+            else:
+                run_cmd("set disassembly-flavor att")
+            #run_cmd("call setbuf(stdout,(void*)0);")
             # if gdb_nonstop:
             #     run_cmd("-gdb-set non-stop on")
 
